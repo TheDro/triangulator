@@ -10,6 +10,7 @@
 <script>
 import Triangles from './Triangles'
 import * as d3 from 'd3'
+// import _ from 'lodash'
 import img from '../img/google-earth.jpg'
 
 
@@ -70,6 +71,80 @@ function reshape(arr, dim) {
     return result
 }
 
+function averageColor(imageArray, poly) {
+    let averageColor = [0,0,0]
+    let nColor = 0
+    forEachPixelInPolygon(poly,(ix,iy) => {
+        averageColor = add(averageColor, imageArray[ix][iy])
+        nColor++
+    })
+    averageColor = multiply(averageColor, 1/nColor)
+    return averageColor
+}
+
+function stdColor(imageArray, poly) {
+    let meanColor = averageColor(imageArray, poly)
+    let varColor = [0,0,0]
+    let nColor = 0
+    forEachPixelInPolygon(poly,(ix,iy) => {
+        let delta = subtract(imageArray[ix][iy], meanColor)
+        varColor = add(varColor, multiply(delta,delta))
+        nColor++
+    })
+    if (nColor <= 1) {
+        return [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY]
+    }
+    varColor = multiply(varColor, 1/(nColor-1))
+    variance = d3.sum(varColor)/3
+    return Math.sqrt(variance)
+}
+
+function forEachPixelInPolygon(poly, callback) {
+    let bounds = xyBounds(poly)
+    for (let ix=Math.ceil(bounds[0][0]); ix<Math.ceil(bounds[0][1]); ix++) {
+        for (let iy=Math.ceil(bounds[1][0]); iy<Math.ceil(bounds[1][1]); iy++) {
+            if (d3.polygonContains(poly, [ix,iy])) {
+                callback(ix,iy)
+            }
+        }
+    }
+}
+
+function subtract(arrA, arrB) {
+    let result = []
+    for (let ix=0; ix<arrA.length; ix++) {
+        result.push(arrA[ix]-arrB[ix])
+    }
+    return result
+}
+
+function add(arrA, arrB) {
+    let result = []
+    for (let ix=0; ix<arrA.length; ix++) {
+        result.push(arrA[ix]+arrB[ix])
+    }
+    return result
+}
+
+function multiply(arr, arg) {
+    let result = []
+    if (Array.isArray(arg)) {
+        for (let ix=0; ix<arr.length; ix++) {
+            result.push(arr[ix]*arg[ix])
+        }
+    } else {
+        for (let ix=0; ix<arr.length; ix++) {
+            result.push(arr[ix]*arg)
+        }
+    }
+    return result
+}
+
+function xyBounds(poly) {
+    let t = d3.transpose(poly)
+    return [d3.extent(t[0]), d3.extent(t[1])]
+}
+
 export default {
     components: {
         Triangles
@@ -80,11 +155,10 @@ export default {
         d3.image(img).then((response) => {
             let imageArray = getImageArray(response)
             console.log('image',imageArray)
-            let points = [...randomPoints(4000, 360, 360), ...contourPoints(10, 360, 360)]
+            let points = [...randomPoints(1000, 360, 360), ...contourPoints(10, 360, 360)]
             let data = voronoi.triangles(points)
             this.triangles = data.map((poly) => {
-                let centroid = d3.polygonCentroid(poly)
-                let color = imageArray[Math.floor(centroid[0])][Math.floor(centroid[1])]
+                let color = averageColor(imageArray, poly)
                 return {coord: poly, color: `rgb(${color[0]}, ${color[1]}, ${color[2]})`}
             })
 

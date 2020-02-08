@@ -13,7 +13,7 @@
 </template>
 
 <script>
-
+import * as d3 from 'd3'
 // structure for tri:
 // [{color: String??, coord: Number[][]}]
 
@@ -28,10 +28,11 @@ export default {
                 return []
             }
             return this.tri.map((tri) => {
+                let centroid = d3.polygonCentroid(tri.coord)
                 return {
                     color: tri.color || randomColor(),
                     coordinateString: "M "+tri.coord.map((c) => {return c.join(',')}).join(' ')+" Z",
-                    hash: 1
+                    hash: centroid[0]+centroid[1]*Math.PI
                 }
             })
         }
