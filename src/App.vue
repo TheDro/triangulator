@@ -10,13 +10,18 @@
 <script>
 import Triangles from './Triangles'
 import * as d3 from 'd3'
-// import _ from 'lodash'
+import _ from 'lodash'
 import img from '../img/google-earth.jpg'
-
-
+import {add, subtract, multiply} from './ArrayOperations'
 let voronoi = d3.voronoi()
 
 window.d3 = d3
+window._ = _
+
+function sortedTriangles(points) {
+    let triangles = d3.voronoi().triangles(points)
+    return triangles
+}
 
 
 function randomPoints(n, xRange, yRange) {
@@ -49,8 +54,7 @@ function getImageArray(imgElement) {
     let ctx = canvas.getContext('2d')
     ctx.drawImage(imgElement, 0, 0)
     let data = ctx.getImageData(0,0,w,h).data
-    console.log('data',data)
-    return reshape(data, [h,w,4])
+    return d3.transpose(reshape(data, [h,w,4]))
 }
 
 function reshape(arr, dim) {
@@ -83,26 +87,43 @@ function averageColor(imageArray, poly) {
 }
 
 function stdColor(imageArray, poly) {
-    let meanColor = averageColor(imageArray, poly)
-    let varColor = [0,0,0]
-    let nColor = 0
+
+    let nColors = 0
+    let sumR = 0
+    let sumG = 0
+    let sumB = 0
+    let sumR2 = 0
+    let sumG2 = 0
+    let sumB2 = 0
+    
     forEachPixelInPolygon(poly,(ix,iy) => {
-        let delta = subtract(imageArray[ix][iy], meanColor)
-        varColor = add(varColor, multiply(delta,delta))
-        nColor++
+        nColors++
+        let [R,G,B] = imageArray[ix][iy]
+        sumR += R
+        sumG += G
+        sumB += B
+        sumR2 += R*R
+        sumG2 += G*G
+        sumB2 += B*B
     })
-    if (nColor <= 1) {
-        return [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY]
+
+    if (nColors <= 1) {
+        return Number.POSITIVE_INFINITY
     }
-    varColor = multiply(varColor, 1/(nColor-1))
-    variance = d3.sum(varColor)/3
-    return Math.sqrt(variance)
+
+    return (sumR2/(nColors-1) - (sumR/nColors)**2 + sumG2/(nColors-1) - (sumG/nColors)**2 + sumB2/(nColors-1) - (sumB/nColors)**2)*nColors
 }
 
 function forEachPixelInPolygon(poly, callback) {
     let bounds = xyBounds(poly)
-    for (let ix=Math.ceil(bounds[0][0]); ix<Math.ceil(bounds[0][1]); ix++) {
-        for (let iy=Math.ceil(bounds[1][0]); iy<Math.ceil(bounds[1][1]); iy++) {
+    bounds = bounds.map((bound) => {
+        return bound.map(Math.ceil)
+    })
+    let [[minX, maxX],[minY, maxY]] = bounds
+    let ix=0
+    let iy=0
+    for (ix=minX; ix<maxX; ix++) {
+        for (iy=minY; iy<maxY; iy++) {
             if (d3.polygonContains(poly, [ix,iy])) {
                 callback(ix,iy)
             }
@@ -110,40 +131,87 @@ function forEachPixelInPolygon(poly, callback) {
     }
 }
 
-function subtract(arrA, arrB) {
-    let result = []
-    for (let ix=0; ix<arrA.length; ix++) {
-        result.push(arrA[ix]-arrB[ix])
-    }
-    return result
-}
+function forPixelsInPolygon(n, poly, callback) {
+    for (let iR=0; iR<n; iR++) {
 
-function add(arrA, arrB) {
-    let result = []
-    for (let ix=0; ix<arrA.length; ix++) {
-        result.push(arrA[ix]+arrB[ix])
     }
-    return result
-}
-
-function multiply(arr, arg) {
-    let result = []
-    if (Array.isArray(arg)) {
-        for (let ix=0; ix<arr.length; ix++) {
-            result.push(arr[ix]*arg[ix])
-        }
-    } else {
-        for (let ix=0; ix<arr.length; ix++) {
-            result.push(arr[ix]*arg)
-        }
-    }
-    return result
 }
 
 function xyBounds(poly) {
     let t = d3.transpose(poly)
     return [d3.extent(t[0]), d3.extent(t[1])]
 }
+
+
+function optimize(nSteps, temperature, imageArray, points) {
+    points = _.cloneDeep(points)
+    let polyArray = sortedTriangles(points)
+    let rangeX = [0, imageArray.length-1]
+    let rangeY = [0, imageArray[0].length-1]
+    let nRand = d3.randomNormal(0,20.0)
+    for (let i=0; i<nSteps; i++) {
+        let randomIndex = Math.floor(Math.random()*points.length)
+        let oldPoint = points[randomIndex]
+        points[randomIndex] = [within(rangeX, oldPoint[0]+nRand()), within(rangeY, oldPoint[1]+nRand())]
+        let nextPolyArray = sortedTriangles(points)
+        let diff = stdDiff(imageArray, polyArray, nextPolyArray)
+        if (diff < 0) {
+            // Accept change
+            polyArray = nextPolyArray
+        } else {
+            // Revert change
+            points[randomIndex] = oldPoint
+        }
+
+        if (i%100 === 0) {
+            console.log(i)
+        }
+    }
+    return points
+}
+
+function within(range, value) {
+    return Math.max(range[0], Math.min(range[1], value))
+}
+
+
+function stdDiff(imageArray, polyArrayLeft, polyArrayRight) {
+    
+    let leftMatched  = new Array(polyArrayLeft.length).fill(false)
+    let rightMatched = new Array(polyArrayRight.length).fill(false)
+    let leftCenters  = polyArrayLeft.map((poly) => {
+        let centroid = d3.polygonCentroid(poly)
+        return centroid[0]*Math.PI+centroid[1]
+    })
+    let rightCenters = polyArrayRight.map((poly) => {
+        let centroid = d3.polygonCentroid(poly)
+        return centroid[0]*Math.PI+centroid[1]
+    })
+
+    for (let iLeft=0; iLeft<leftCenters.length; iLeft++) {
+        let leftCenter = leftCenters[iLeft]
+        let iRight = rightCenters.indexOf(leftCenter)
+        if (iRight >= 0) {
+            leftMatched[iLeft] = true
+            rightMatched[iRight] = true
+        }
+    }
+
+    let leftStd = polyArrayLeft.filter((e, index) => {
+        return !leftMatched[index]
+    }).reduce((total, poly) => {
+        return total + stdColor(imageArray, poly)
+    },0)
+
+    let rightStd = polyArrayRight.filter((e, index) => {
+        return !rightMatched[index]
+    }).reduce((total, poly) => {
+        return total + stdColor(imageArray, poly)
+    },0)
+    return rightStd - leftStd
+}
+
+let imageArray = []
 
 export default {
     components: {
@@ -153,28 +221,37 @@ export default {
 
         let imgElement = null;
         d3.image(img).then((response) => {
-            let imageArray = getImageArray(response)
-            console.log('image',imageArray)
-            let points = [...randomPoints(1000, 360, 360), ...contourPoints(10, 360, 360)]
-            let data = voronoi.triangles(points)
-            this.triangles = data.map((poly) => {
-                let color = averageColor(imageArray, poly)
-                return {coord: poly, color: `rgb(${color[0]}, ${color[1]}, ${color[2]})`}
-            })
+            imageArray = getImageArray(response)
+            let points = [...randomPoints(200, 380, 360), ...contourPoints(5, 380, 360)]
+            let data = sortedTriangles(points)
+            this.polyArray = data
+
+
+            // setTimeout(() => {
+                let nextPoints = optimize(600, 0, imageArray, points)
+                console.log('optimized')
+                this.polyArray = sortedTriangles(nextPoints)
+            // }, 200)
+            
 
         })
 
-        setTimeout(()=> {
-
-            
-        }, 100)
+    },
+    computed: {
+        triangles: function() {
+            return this.polyArray.map((poly) => {
+                let std = Math.sqrt(stdColor(imageArray, poly))
+                // let std = 128
+                let color = [std,std/10,std/100]
+                return {coord: poly, color: `rgb(${color[0]}, ${color[1]}, ${color[2]})`}
+            })
+        }
     },
     data() {
         return {
             name: 'Andrew',
-            triangles: [{
-                coord: [[50,70],[42,128],[137,112]]
-            }]
+            polyArray: [],
+            imageArray: []
         }
     }
 }
