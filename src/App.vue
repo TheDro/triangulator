@@ -1,6 +1,6 @@
 <template>
     <h3>
-        Hello {{name}}
+        Deviation {{deviation}}
 
         <Triangles :tri="triangles"></Triangles>
     </h3>
@@ -11,8 +11,10 @@
 import Triangles from './Triangles'
 import * as d3 from 'd3'
 import _ from 'lodash'
-import img from '../img/google-earth.jpg'
+import img from '../img/earth-small.png'
 import {add, subtract, multiply} from './ArrayOperations'
+// import {optimize} from './optimizer'
+
 let voronoi = d3.voronoi()
 
 window.d3 = d3
@@ -131,11 +133,6 @@ function forEachPixelInPolygon(poly, callback) {
     }
 }
 
-function forPixelsInPolygon(n, poly, callback) {
-    for (let iR=0; iR<n; iR++) {
-
-    }
-}
 
 function xyBounds(poly) {
     let t = d3.transpose(poly)
@@ -143,19 +140,20 @@ function xyBounds(poly) {
 }
 
 
-function optimize(nSteps, temperature, imageArray, points) {
+function optimize(nSteps, temperature, imageArray, points, nPoints) {
+    nPoints = nPoints || points.length
     points = _.cloneDeep(points)
     let polyArray = sortedTriangles(points)
     let rangeX = [0, imageArray.length-1]
     let rangeY = [0, imageArray[0].length-1]
     let nRand = d3.randomNormal(0,20.0)
     for (let i=0; i<nSteps; i++) {
-        let randomIndex = Math.floor(Math.random()*points.length)
+        let randomIndex = Math.floor(Math.random()*nPoints)
         let oldPoint = points[randomIndex]
         points[randomIndex] = [within(rangeX, oldPoint[0]+nRand()), within(rangeY, oldPoint[1]+nRand())]
         let nextPolyArray = sortedTriangles(points)
         let diff = stdDiff(imageArray, polyArray, nextPolyArray)
-        if (diff < 0) {
+        if (Math.random() <= Math.exp(-diff/temperature)) {
             // Accept change
             polyArray = nextPolyArray
         } else {
@@ -163,9 +161,9 @@ function optimize(nSteps, temperature, imageArray, points) {
             points[randomIndex] = oldPoint
         }
 
-        if (i%100 === 0) {
-            console.log(i)
-        }
+        // if (i%100 === 0) {
+        //     console.log(i)
+        // }
     }
     return points
 }
@@ -222,17 +220,28 @@ export default {
         let imgElement = null;
         d3.image(img).then((response) => {
             imageArray = getImageArray(response)
-            let points = [...randomPoints(200, 380, 360), ...contourPoints(5, 380, 360)]
+            let [nx,ny] = [imageArray.length, imageArray[0].length]
+            let nPoints = 500
+            let points = [...randomPoints(nPoints, nx, ny), ...contourPoints(5, nx, ny)]
             let data = sortedTriangles(points)
             this.polyArray = data
 
 
-            // setTimeout(() => {
-                let nextPoints = optimize(600, 0, imageArray, points)
-                console.log('optimized')
-                this.polyArray = sortedTriangles(nextPoints)
-            // }, 200)
-            
+            let refresh = (iterationsLeft) => {
+
+                points = optimize(500, 100, imageArray, points, nPoints)
+                console.log(`${iterationsLeft} iterations left.`)
+                this.polyArray = sortedTriangles(points)
+                this.deviation = Math.round(Math.sqrt(stdDiff(imageArray, [], this.polyArray)))
+
+                if (iterationsLeft > 1) {
+                    setTimeout(() => {
+                        refresh(iterationsLeft-1)
+                    },50) 
+                }
+            }
+
+            refresh(1000)
 
         })
 
@@ -251,7 +260,8 @@ export default {
         return {
             name: 'Andrew',
             polyArray: [],
-            imageArray: []
+            imageArray: [],
+            deviation: 0
         }
     }
 }
