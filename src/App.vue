@@ -29,6 +29,20 @@ function randomPoints(n, xRange, yRange) {
     return output
 }
 
+function uniformPoints(nx, ny, xRange, yRange) {
+    let output = []
+    let nRand = d3.randomNormal(0,0.1)
+    for (let ix=0.5; ix<nx; ix++) {
+        for (let iy=0.5; iy<ny; iy++) {
+            output.push([
+                (ix+nRand())*xRange/nx, 
+                (iy+nRand())*yRange/ny
+            ])
+        }
+    }
+    return output
+}
+
 function contourPoints(n, xRange, yRange) {
     let output = []
     for (let i=0; i<n; i++) {
@@ -84,15 +98,16 @@ export default {
         d3.image(img).then((response) => {
             imageArray = getImageArray(response)
             let [nx,ny] = [imageArray.length, imageArray[0].length]
-            let nPoints = 500
-            let points = [...randomPoints(nPoints, nx, ny), ...contourPoints(5, nx, ny)]
+            // let nPoints = 500
+            let n = 20
+            let points = [...uniformPoints(n, n, nx, ny), ...contourPoints(5, nx, ny)]
             let data = sortedTriangles(points)
             this.polyArray = data
 
 
             let refresh = (iterationsLeft) => {
 
-                points = optimize(500, 100, imageArray, points, nPoints)
+                points = optimize(400, 100, imageArray, points, n*n)
                 console.log(`${iterationsLeft} iterations left.`)
                 this.polyArray = sortedTriangles(points)
                 this.deviation = Math.round(Math.sqrt(stdDiff(imageArray, [], this.polyArray)))
@@ -104,7 +119,7 @@ export default {
                 }
             }
 
-            refresh(1000)
+            refresh(20)
 
         })
 
