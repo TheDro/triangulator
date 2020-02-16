@@ -1,8 +1,11 @@
 <template>
     <h3>
-        Deviation {{deviation}}
-
-        <Triangles :tri="triangles"></Triangles>
+        Deviation {{Math.round(deviation)}}
+        <div @click="testClick">Howdy</div>
+        <div @click="testClick">
+            <Triangles :tri="triangles"></Triangles>
+            <Triangles :tri="triangles2"></Triangles>
+        </div>
     </h3>
 </template>
 
@@ -11,7 +14,7 @@
 import Triangles from './Triangles'
 import * as d3 from 'd3'
 import _ from 'lodash'
-import img from '../img/earth-small.png'
+import img from '../img/mountain.png'
 import {add, subtract, multiply} from './ArrayOperations'
 import {optimize, stdDiff, stdColor, averageColor, sortedTriangles} from './optimize'
 
@@ -31,7 +34,7 @@ function randomPoints(n, xRange, yRange) {
 
 function uniformPoints(nx, ny, xRange, yRange) {
     let output = []
-    let nRand = d3.randomNormal(0,0.1)
+    let nRand = d3.randomNormal(0,0.01)
     for (let ix=0.5; ix<nx; ix++) {
         for (let iy=0.5; iy<ny; iy++) {
             output.push([
@@ -87,6 +90,7 @@ function reshape(arr, dim) {
 }
 
 let imageArray = []
+let points = []
 
 export default {
     components: {
@@ -100,14 +104,14 @@ export default {
             let [nx,ny] = [imageArray.length, imageArray[0].length]
             // let nPoints = 500
             let n = 20
-            let points = [...uniformPoints(n, n, nx, ny), ...contourPoints(5, nx, ny)]
+            points = [...uniformPoints(n, n, nx, ny), ...contourPoints(5, nx, ny)]
             let data = sortedTriangles(points)
             this.polyArray = data
 
 
             let refresh = (iterationsLeft) => {
 
-                points = optimize(400, 100, imageArray, points, n*n)
+                points = optimize(400, 50**2, imageArray, points, 16)
                 console.log(`${iterationsLeft} iterations left.`)
                 this.polyArray = sortedTriangles(points)
                 this.deviation = Math.round(Math.sqrt(stdDiff(imageArray, [], this.polyArray)))
@@ -119,17 +123,32 @@ export default {
                 }
             }
 
-            refresh(20)
+            refresh(200)
 
         })
 
     },
+    methods: {
+        testClick: function(e) {
+            console.log('click', e)
+            // debugger
+            points.push([e.offsetX, e.offsetY])
+            this.polyArray = sortedTriangles(points)
+        }
+    },
     computed: {
         triangles: function() {
             return this.polyArray.map((poly) => {
-                let std = Math.sqrt(stdColor(imageArray, poly))
-                // let std = 128
-                let color = [std,std/10,std/100]
+                let color = averageColor(imageArray, poly)
+                return {coord: poly, color: `rgb(${color[0]}, ${color[1]}, ${color[2]})`}
+            })
+        },
+        triangles2: function() {
+            this.deviation = 0
+            return this.polyArray.map((poly) =>{
+                let std = stdColor(imageArray, poly)/d3.polygonArea(poly)/40
+                this.deviation += std
+                let color = [std,std,std]
                 return {coord: poly, color: `rgb(${color[0]}, ${color[1]}, ${color[2]})`}
             })
         }

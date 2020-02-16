@@ -1,7 +1,6 @@
 <template>
-    <div>
-        <p>test</p>
-        <svg height="400px" width="600px">
+    <div style="display: inline-block;">
+        <svg height="200px" width="200px">
             <g id="top-layer">
                 <path v-for="triangle of triangles" :key="triangle.hash"
                     :style="'fill: '+triangle.color+';'"
