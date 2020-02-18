@@ -1,7 +1,23 @@
 <template>
     <h3>
-        Deviation {{Math.round(deviation)}}
-        <div @click="testClick">Howdy</div>
+        <p>
+            Deviation {{Math.round((deviation))}}
+            Poly {{polyArray.length}}
+        </p>
+        <div>
+            <label> Iterations </label>
+            <input type="number" v-model="iterations" /> 
+        </div>
+        <div>
+            <label> Temperature </label>
+            <input type="number" v-model="temperature" /> 
+        </div>
+        <div>
+            <label> Optimization Parameters </label>
+            <input type="number" v-model="optimizationParams[0]" /> 
+            <input type="number" v-model="optimizationParams[1]" /> 
+        </div>
+        <button @click="callRefresh(iterations)"> Refresh </button>
         <div @click="testClick">
             <Triangles :tri="triangles"></Triangles>
             <Triangles :tri="triangles2"></Triangles>
@@ -14,9 +30,9 @@
 import Triangles from './Triangles'
 import * as d3 from 'd3'
 import _ from 'lodash'
-import img from '../img/mountain.png'
+import img from '../img/uma2.png'
 import {add, subtract, multiply} from './ArrayOperations'
-import {optimize, stdDiff, stdColor, averageColor, sortedTriangles} from './optimize'
+import {optimize, cost, stdColor, stdDiff, averageColor, sortedTriangles} from './optimize'
 
 let voronoi = d3.voronoi()
 
@@ -91,6 +107,7 @@ function reshape(arr, dim) {
 
 let imageArray = []
 let points = []
+let refresh = null
 
 export default {
     components: {
@@ -102,28 +119,25 @@ export default {
         d3.image(img).then((response) => {
             imageArray = getImageArray(response)
             let [nx,ny] = [imageArray.length, imageArray[0].length]
-            // let nPoints = 500
-            let n = 20
+            let n = 15
             points = [...uniformPoints(n, n, nx, ny), ...contourPoints(5, nx, ny)]
             let data = sortedTriangles(points)
             this.polyArray = data
 
 
-            let refresh = (iterationsLeft) => {
+            refresh = (iterationsLeft) => {
 
-                points = optimize(400, 50**2, imageArray, points, 16)
+                points = optimize(400, this.temperature, imageArray, points, 16, this.optimizationParams)
                 console.log(`${iterationsLeft} iterations left.`)
                 this.polyArray = sortedTriangles(points)
-                this.deviation = Math.round(Math.sqrt(stdDiff(imageArray, [], this.polyArray)))
+                this.deviation = stdDiff(imageArray, [], this.polyArray, this.optimizationParams)
 
                 if (iterationsLeft > 1) {
                     setTimeout(() => {
                         refresh(iterationsLeft-1)
-                    },50) 
+                    },20) 
                 }
             }
-
-            refresh(200)
 
         })
 
@@ -132,8 +146,11 @@ export default {
         testClick: function(e) {
             console.log('click', e)
             // debugger
-            points.push([e.offsetX, e.offsetY])
+            points.unshift([e.offsetX, e.offsetY])
             this.polyArray = sortedTriangles(points)
+        },
+        callRefresh: function(n) {
+            refresh(n)
         }
     },
     computed: {
@@ -146,9 +163,10 @@ export default {
         triangles2: function() {
             this.deviation = 0
             return this.polyArray.map((poly) =>{
-                let std = stdColor(imageArray, poly)/d3.polygonArea(poly)/40
+                let std = cost(imageArray, poly, this.optimizationParams)
+                let rgb = std/d3.polygonArea(poly)/10
                 this.deviation += std
-                let color = [std,std,std]
+                let color = [rgb+128, rgb+128, rgb+128]
                 return {coord: poly, color: `rgb(${color[0]}, ${color[1]}, ${color[2]})`}
             })
         }
@@ -158,7 +176,10 @@ export default {
             name: 'Andrew',
             polyArray: [],
             imageArray: [],
-            deviation: 0
+            deviation: 0,
+            iterations: 1,
+            temperature: 400,
+            optimizationParams: [2, 2]
         }
     }
 }

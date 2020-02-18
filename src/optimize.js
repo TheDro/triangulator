@@ -3,17 +3,17 @@ import * as d3 from 'd3'
 import {add, multiply} from './ArrayOperations'
 
 
-function optimize(nSteps, temperature, imageArray, points, ignorePoints) {
+function optimize(nSteps, temperature, imageArray, points, ignorePoints, params) {
     let nPoints = points.length-ignorePoints
     points = _.cloneDeep(points)
     let polyArray = sortedTriangles(points)
     let rangeX = [0, imageArray.length-1]
     let rangeY = [0, imageArray[0].length-1]
-    let nRand = d3.randomNormal(0,5.0)
+    let nRand = d3.randomNormal(0,2.0)
     for (let i=0; i<nSteps; i++) {
         let randomIndex = Math.floor(Math.random()*nPoints)
         let oldPoint = points[randomIndex]
-        if (Math.random() < 0.9) {
+        if (Math.random() < 0.8) {
             // Move
             points[randomIndex] = [within(rangeX, oldPoint[0]+nRand()), within(rangeY, oldPoint[1]+nRand())]
             let nextPolyArray = sortedTriangles(points)
@@ -28,7 +28,7 @@ function optimize(nSteps, temperature, imageArray, points, ignorePoints) {
             // remove
             points.splice(randomIndex,1)
             let nextPolyArray = sortedTriangles(points)
-            let diff = stdDiff(imageArray, polyArray, nextPolyArray)
+            let diff = stdDiff(imageArray, polyArray, nextPolyArray, params)
             let acceptChange = Math.random() <= Math.exp(-diff/temperature)
             if (acceptChange) {
                 polyArray = nextPolyArray
@@ -38,10 +38,13 @@ function optimize(nSteps, temperature, imageArray, points, ignorePoints) {
             }
         } else {
             // add
-            let newPoint = [Math.random()*rangeX[1], Math.random()*rangeY[1]]
+            let randomPoly = polyArray[Math.floor(Math.random()*polyArray.length)]
+            let vert = Math.floor(3*Math.random())
+            let newPoint = [(randomPoly[vert][0]+randomPoly[(vert+1)%3][0])/2,
+                (randomPoly[vert][1]+randomPoly[(vert+1)%3][1])/2]
             points.splice(randomIndex, 0, newPoint)
             let nextPolyArray = sortedTriangles(points)
-            let diff = stdDiff(imageArray, polyArray, nextPolyArray)
+            let diff = stdDiff(imageArray, polyArray, nextPolyArray, params)
             let acceptChange = Math.random() <= Math.exp(-diff/temperature)
             if (acceptChange) {
                 polyArray = nextPolyArray
@@ -55,7 +58,7 @@ function optimize(nSteps, temperature, imageArray, points, ignorePoints) {
 }
 
 
-function stdDiff(imageArray, polyArrayLeft, polyArrayRight, debug) {
+function stdDiff(imageArray, polyArrayLeft, polyArrayRight, params) {
     
     let leftMatched  = new Array(polyArrayLeft.length).fill(false)
     let rightMatched = new Array(polyArrayRight.length).fill(false)
@@ -80,16 +83,20 @@ function stdDiff(imageArray, polyArrayLeft, polyArrayRight, debug) {
     let leftStd = polyArrayLeft.filter((e, index) => {
         return !leftMatched[index]
     }).reduce((total, poly) => {
-        return total + stdColor(imageArray, poly)
+        return total + cost(imageArray, poly, params)
     },0)
 
     let rightStd = polyArrayRight.filter((e, index) => {
         return !rightMatched[index]
     }).reduce((total, poly) => {
-        return total + stdColor(imageArray, poly)
+        return total + cost(imageArray, poly, params)
     },0)
-    if (debug) { debugger }
     return rightStd - leftStd
+}
+
+
+function cost(imageArray, poly, params = [1.5, 2]) {
+    return stdColor(imageArray, poly) - d3.polygonArea(poly)**params[0]*params[1]
 }
 
 
@@ -118,7 +125,12 @@ function stdColor(imageArray, poly) {
         return Number.POSITIVE_INFINITY
     }
     // debugger
-    return (sumR2/(nColors-1) - (sumR/nColors)**2 + sumG2/(nColors-1) - (sumG/nColors)**2 + sumB2/(nColors-1) - (sumB/nColors)**2)*(nColors-1)
+    // return (sumR2/(nColors-1) - (sumR/nColors)**2 + sumG2/(nColors-1) - (sumG/nColors)**2 + sumB2/(nColors-1) - (sumB/nColors)**2)*(nColors-1)
+    return (sumR2/nColors - (sumR/nColors)**2 
+        + sumG2/nColors - (sumG/nColors)**2 
+        + sumB2/nColors - (sumB/nColors)**2)
+        *nColors**2/(nColors-1)
+        // -nColors**(param[0])*param[1] //fudge factor
 }
 
 
@@ -167,4 +179,4 @@ function within(range, value) {
 }
 
 
-export {optimize, stdDiff, stdColor, forEachPixelInPolygon, averageColor, sortedTriangles}
+export {optimize, stdDiff, stdColor, cost, forEachPixelInPolygon, averageColor, sortedTriangles}
