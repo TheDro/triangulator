@@ -16,6 +16,8 @@
             <label> Optimization Parameters </label>
             <input type="number" v-model="optimizationParams[0]" /> 
             <input type="number" v-model="optimizationParams[1]" /> 
+            <input type="number" v-model="optimizationParams[2]" /> 
+            <input type="number" v-model="optimizationParams[3]" /> 
         </div>
         <button @click="callRefresh(iterations)"> Refresh </button>
         <div @click="testClick">
@@ -127,7 +129,7 @@ export default {
 
             refresh = (iterationsLeft) => {
 
-                points = optimize(400, this.temperature, imageArray, points, 16, this.optimizationParams)
+                points = optimize(600, this.temperature, imageArray, points, 16, this.optimizationParams)
                 console.log(`${iterationsLeft} iterations left.`)
                 this.polyArray = sortedTriangles(points)
                 this.deviation = stdDiff(imageArray, [], this.polyArray, this.optimizationParams)
@@ -179,7 +181,7 @@ export default {
             deviation: 0,
             iterations: 1,
             temperature: 400,
-            optimizationParams: [2, 2]
+            optimizationParams: [10, -1.5, -10, 1.5]
         }
     }
 }

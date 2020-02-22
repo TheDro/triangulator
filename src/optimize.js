@@ -1,7 +1,12 @@
 import _ from 'lodash'
 import * as d3 from 'd3'
+import Delaunator from 'delaunator'
 import {add, multiply} from './ArrayOperations'
 
+
+function randomInt(maxInt) {
+    return Math.floor(Math.random()*maxInt)
+}
 
 function optimize(nSteps, temperature, imageArray, points, ignorePoints, params) {
     let nPoints = points.length-ignorePoints
@@ -95,8 +100,12 @@ function stdDiff(imageArray, polyArrayLeft, polyArrayRight, params) {
 }
 
 
-function cost(imageArray, poly, params = [1.5, 2]) {
-    return stdColor(imageArray, poly) - d3.polygonArea(poly)**params[0]*params[1]
+function cost(imageArray, poly, params = [10, -1.5, -2, 1.5]) {
+    let normalization = 100
+    let area = d3.polygonArea(poly)/20
+    return stdColor(imageArray, poly) 
+    + normalization*params[0]*area**params[1]
+    + normalization*params[2]*area**params[3]
 }
 
 
@@ -124,13 +133,10 @@ function stdColor(imageArray, poly) {
     if (nColors <= 1) {
         return Number.POSITIVE_INFINITY
     }
-    // debugger
-    // return (sumR2/(nColors-1) - (sumR/nColors)**2 + sumG2/(nColors-1) - (sumG/nColors)**2 + sumB2/(nColors-1) - (sumB/nColors)**2)*(nColors-1)
     return (sumR2/nColors - (sumR/nColors)**2 
         + sumG2/nColors - (sumG/nColors)**2 
         + sumB2/nColors - (sumB/nColors)**2)
         *nColors**2/(nColors-1)
-        // -nColors**(param[0])*param[1] //fudge factor
 }
 
 
@@ -165,8 +171,17 @@ function averageColor(imageArray, poly) {
 
 
 function sortedTriangles(points) {
-    let triangles = d3.voronoi().triangles(points)
-    return triangles
+    let triangles = Delaunator.from(points).triangles
+    let coordinates = []
+    for (let i = 0; i < triangles.length; i += 3) {
+        coordinates.push([
+            points[triangles[i]],
+            points[triangles[i + 1]],
+            points[triangles[i + 2]]
+        ]);
+    }
+
+    return coordinates
 }
 
 function xyBounds(poly) {
