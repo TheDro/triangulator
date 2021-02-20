@@ -14,7 +14,7 @@ function optimize(nSteps, temperature, imageArray, points, ignorePoints, params)
     let polyArray = sortedTriangles(points)
     let rangeX = [0, imageArray.length-1]
     let rangeY = [0, imageArray[0].length-1]
-    let nRand = d3.randomNormal(0,2.0)
+    let nRand = d3.randomNormal(0,1.0)
     for (let i=0; i<nSteps; i++) {
         let randomIndex = Math.floor(Math.random()*nPoints)
         let oldPoint = points[randomIndex]
@@ -22,7 +22,7 @@ function optimize(nSteps, temperature, imageArray, points, ignorePoints, params)
             // Move
             points[randomIndex] = [within(rangeX, oldPoint[0]+nRand()), within(rangeY, oldPoint[1]+nRand())]
             let nextPolyArray = sortedTriangles(points)
-            let diff = stdDiff(imageArray, polyArray, nextPolyArray)
+            let diff = stdDiff(imageArray, polyArray, nextPolyArray, params)
             let acceptChange = Math.random() <= Math.exp(-diff/temperature)
             if (acceptChange) {
                 polyArray = nextPolyArray

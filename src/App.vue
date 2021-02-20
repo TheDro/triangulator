@@ -32,7 +32,8 @@
 import Triangles from './Triangles'
 import * as d3 from 'd3'
 import _ from 'lodash'
-import img from '../img/uma2.png'
+// import img from '../img/mona-lisa.png'
+import img from '../img/parrot-small.png'
 import {add, subtract, multiply} from './ArrayOperations'
 import {optimize, cost, stdColor, stdDiff, averageColor, sortedTriangles} from './optimize'
 

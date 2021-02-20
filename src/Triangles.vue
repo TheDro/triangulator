@@ -1,6 +1,6 @@
 <template>
     <div style="display: inline-block;">
-        <svg height="300px" width="200px">
+        <svg height="300px" width="300px">
             <g id="top-layer">
                 <path v-for="triangle of triangles" :key="triangle.hash"
                     :data-id="triangle.id"
